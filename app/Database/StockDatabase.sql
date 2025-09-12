@@ -11,7 +11,10 @@ CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   name TEXT,
   email TEXT UNIQUE,
+  password varchar(200) DEFAULT NULL, 
+  is_active boolean DEFAULT NULL,
   created_at TIMESTAMP DEFAULT now()
+  
 );
 
 -- Rewards

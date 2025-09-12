@@ -1,10 +1,11 @@
 from fastapi import FastAPI
-from router import user
+from routers import user,admin
 app=FastAPI(
     prefix='/admin'
     ,tags=['admin']
 )   
 
+app.include_router(admin.router)
 app.include_router(user.router)
 
 # @app.post("/reward")
@@ -18,17 +19,16 @@ app.include_router(user.router)
 
 # @app.get("/histroical-inr/{userId}")
 # async def return_all_stock_user_today():
-#     return {"message": "Return the INR value of the user’s stock rewards for all past days (up to yesterday)."}
+#     return {"message": "Return the INR value of the user's stock rewards for all past days (up to yesterday)."}
 
 # @app.get("/stats/{userId}")
 # async def return_status():
 #     return {"message": "- Total shares rewarded today (grouped by stock symbol)."
-#     "- Current INR value of the user’s portfolio. "}
+#     "- Current INR value of the user's portfolio. "}
 
 
 # @app.get("/portfolio/{userId}")
 # async def return_status():
 #     return {"message": "- Detailed holdings with current INR value"}
-
 
 
