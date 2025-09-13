@@ -22,7 +22,7 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 
 @router.get('/all_user',status_code=status.HTTP_200_OK)
-async def create_users(db:db_dependency):
+async def all_user(db:db_dependency):
         if not db:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
         return db.query(models.Users).all()

@@ -22,7 +22,7 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 
 @router.get('/shares',status_code=status.HTTP_200_OK)
-async def create_users(db:db_dependency):
+async def share_Market(db:db_dependency):
         if not db:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
         return db.query(models.StockPriceHistory).all()

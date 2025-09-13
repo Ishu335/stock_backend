@@ -25,80 +25,99 @@ class Request(BaseModel):
     user_id: int
     stock_symbol: str
     incentives_for_actions: str
-    shares:int
+    shares: int
 
-async def add_portfolio_entry(db:db_dependency, user_id: int, stock_symbol: str, shares: float, average_price: float, current_price: float):
-    # Calculate total value
+
+async def add_portfolio_entry(
+    db: db_dependency, user_id: int, stock_symbol: str, shares: float,
+    average_price: float, current_price: float
+):
     total_value = shares * current_price
 
-    # Create Portfolio object
-    new_portfolio = models.Portfolio(
-        user_id=user_id,
-        stock_symbol=stock_symbol,
-        shares=shares,
-        average_price=average_price,
-        current_price=current_price,
-        total_value=total_value
+    portfolio_entry = (
+        db.query(models.Portfolio)
+        .filter(models.Portfolio.user_id == user_id)
+        .filter(models.Portfolio.stock_symbol == stock_symbol)
+        .first()
     )
-    db.add(new_portfolio)
+
+    if portfolio_entry:
+        portfolio_entry.shares += shares
+        portfolio_entry.average_price = (
+            (portfolio_entry.average_price * portfolio_entry.shares) + (average_price * shares)
+        ) / (portfolio_entry.shares + shares)  
+        portfolio_entry.current_price = current_price
+        portfolio_entry.total_value = portfolio_entry.shares * current_price
+    else:
+            portfolio_entry = models.Portfolio(
+            user_id=user_id,
+            stock_symbol=stock_symbol,
+            shares=shares,
+            average_price=average_price,
+            current_price=current_price,
+            total_value=total_value
+        )
+    db.add(portfolio_entry)
     db.commit()
-    db.refresh(new_portfolio)
-    return "added"
+    db.refresh(portfolio_entry)
+    return portfolio_entry
+
 
 @router.post("/reward", status_code=status.HTTP_201_CREATED)
 async def add_reward(user: Request, db: Session = Depends(get_db)):
 
-    # Check if user exists
     rewarded_user = db.query(models.Users).filter(models.Users.id == user.user_id).first()
     if not rewarded_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
-    
-    particular_id = db.query(models.Portfolio)
-    stockHistory = (
-                db.query(models.StockPriceHistory)
-                .filter(models.StockPriceHistory.current_price>0)
-                .filter(models.StockPriceHistory.average_price>0)
-                .filter(models.StockPriceHistory.shares>0)
-                .filter(models.StockPriceHistory.stock_symbol==user.stock_symbol)
-                )
-    
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ",stockHistory ,"<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ",particular_id ,"<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+
     stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
     if (not stock) or (stock.shares < user.shares):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock not available or insufficient shares")
-    
-    # add_portfolio_entry(user.user_id,user.stock_symbol,user.shares,models.StockPriceHistory.average_price,models.StockPriceHistory.current_price)
 
-    # Create reward without total_price (generated column)
     reward = models.Reward(
         user_id=user.user_id,
         stock_symbol=user.stock_symbol,
         shares=user.shares,
         reward_ts=date.today(),
         action_taken=user.incentives_for_actions,
-        share_price=stock.share_price, # keep this
-        total_price=user.shares*stock.share_price
+        share_price=stock.share_price,
+        total_price=user.shares * stock.share_price
     )
 
-    # Deduct shares from stock
     stock.shares -= user.shares
 
-    # Save to DB
     db.add(reward)
     db.commit()
     db.refresh(reward)
     db.refresh(stock)
 
+    stock_history = (
+        db.query(models.StockPriceHistory)
+        .filter(models.StockPriceHistory.stock_symbol == user.stock_symbol)
+        .order_by(models.StockPriceHistory.captured_at.desc())  
+        .first()
+    )
+
+    if stock_history:
+        await add_portfolio_entry(
+            db=db,
+            user_id=user.user_id,
+            stock_symbol=user.stock_symbol,
+            shares=user.shares,
+            average_price=float(stock_history.average_price),
+            current_price=float(stock_history.current_price)
+        )
+
     return {
         "message": "Reward added successfully",
         "reward_id": reward.id,
-        "shares_rewarded": float(user.shares)
+        "shares_rewarded": user.shares
     }
+
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @router.get("/today-stocks/{userId}", status_code=status.HTTP_200_OK)
-async def return_all_stock_user_today(userId: int, db: db_dependency):
+async def stock_user_today(userId: int, db: db_dependency):
     particular_id = db.query(models.Users).filter(models.Users.id == userId).first()
     if not particular_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user found")
@@ -121,8 +140,7 @@ async def return_all_stock_user_today(userId: int, db: db_dependency):
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 @router.get("/historical-inr/{userId}")
-async def return_all_stock_user_today(db: db_dependency, userId: int):
-    # Include total_price in the query
+async def past_record(db: db_dependency, userId: int):
     results = (
         db.query(models.Reward.stock_symbol, models.Reward.shares, models.Reward.total_price)
         .filter(models.Reward.user_id == userId)
@@ -132,44 +150,53 @@ async def return_all_stock_user_today(db: db_dependency, userId: int):
     )
     total_inr = 0
     for record in results:
-        total_inr += float(record.total_price)  # Now this works
+        total_inr += float(record.total_price)  
 
     return {"Total Prices in INR": total_inr}
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 @router.get("/portfolio/{userId}")
-async def return_status(userId:int,db:db_dependency):
-    particular_id = db.query(models.Portfolio).filter(models.Portfolio.id == userId).first()
+async def user_portfolio(userId:int,db:db_dependency):
+    particular_id = db.query(models.Portfolio).filter(models.Portfolio.user_id == userId).all()
     if not particular_id:   
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user found not have any Portfolio")
     return particular_id
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-# @app.get("/stats/{userId}")
-# async def return_status():
-#     return {"message": "- Total shares rewarded today (grouped by stock symbol)."
-#     "- Current INR value of the user's portfolio. "}
 
+@router.get("/stats/{userId}")
+async def shares_reward_today(userId:int,db:db_dependency):
+    particular_id = (
+        db.query(models.Reward.total_price,models.Reward.stock_symbol,models.Reward.shares)
+        .filter(models.Reward.user_id == userId)
+        .filter(models.Reward.stock_symbol !=None)
+        .filter(models.Reward.shares>0)
+        .filter(models.Reward.reward_ts==date.today())
+        .all()
+        )
+    if not particular_id:   
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user not have Rewared")
+    
+    total={}
+    todayProfit=0
+    for i in particular_id:
 
+        todayProfit+=i.total_price
+        
+        if i.stock_symbol in total:
+            total[i.stock_symbol] += float(i.total_price)
+        else:
+            total[i.stock_symbol] = float(i.total_price)
 
+    valueCurrentPrice = db.query(models.Portfolio.current_price).filter(models.Portfolio.user_id == userId).all()
+    totalValue=0
+    for i in valueCurrentPrice:
+        totalValue+=i.current_price
 
-# @app.get("/stats/{userId}")
-# async def return_status(userId:int,db:db_dependency):
-#     particular_id = (
-#         db.query(models.Portfolio.shares,models.Portfolio.)
-#         .filter(models.Portfolio.user_id == userId).first()
-#         )
-#     if not particular_id:   
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user found not have any Portfolio")
+    dateToday=date.today()
+    return {
+            f"Total Reward Shares on Today {dateToday}{total}",
+            f"Total Profit : {todayProfit}",
+            f"Current INR Value of Portfolio: {totalValue}"
+            }
 
-#     return {"message": "- Total shares rewarded today (grouped by stock symbol)."
-#     "- Current INR value of the user's portfolio. "}
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     user_id = Column(Integer, nullable=False)
-#     stock_symbol = Column(String, nullable=False)
-#     shares = Column(Numeric, nullable=False)
-#     average_price = Column(Numeric(18, 2))
-#     current_price = Column(Numeric(18, 2))
-#     total_value = Column(Numeric(18, 2))  # Optional: can compute manually
-#     last_updated = Column(DateTime, default=date.today())
