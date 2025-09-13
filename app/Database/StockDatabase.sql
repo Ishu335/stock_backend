@@ -9,35 +9,45 @@ DROP TABLE IF EXISTS users;
 -- Users
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
-  name TEXT,
-  email TEXT UNIQUE,
+  name  varchar(20),
+  email  varchar(25) UNIQUE,
   password varchar(200) DEFAULT NULL, 
-  is_active boolean DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT now()
-  
+  created_at TIMESTAMP DEFAULT now() 
 );
 
 -- Rewards
 CREATE TABLE rewards (
   id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id),
+  user_id INT NOT NULL,
   stock_symbol TEXT NOT NULL,
-  shares NUMERIC(18,6) NOT NULL,
+  shares NUMERIC NOT NULL,
   reward_ts TIMESTAMP NOT NULL,
-  idempotency_key TEXT,
-  created_at TIMESTAMP DEFAULT now()
+  action_taken TEXT,
+  share_price NUMERIC(18,2),                   
+  total_price NUMERIC(18,2)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_rewards_idemp 
-ON rewards(user_id, idempotency_key) 
-WHERE idempotency_key IS NOT NULL;
 
 -- Stock Prices (latest)
-CREATE TABLE stock_prices (
+CREATE TABLE stock_prices(
+  id SERIAL ,
   stock_symbol TEXT PRIMARY KEY,
-  price_in_inr NUMERIC(18,4) NOT NULL,
+  shares BIGINT ,
+  price_in_inr NUMERIC(18,2) NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE portfolio (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    stock_symbol TEXT NOT NULL,
+    shares NUMERIC NOT NULL,
+    average_price NUMERIC(18,2),
+    current_price NUMERIC(18,2),
+    total_value NUMERIC(18,2) ,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- Stock Price History
 CREATE TABLE stock_price_history (

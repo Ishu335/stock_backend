@@ -28,19 +28,32 @@ class CreateUserRequest(BaseModel):
     
 
 
-@router.put('/create_user',status_code=status.HTTP_204_NO_CONTENT)
-async def create_users(db:db_dependency,created_user:CreateUserRequest):
-    users = db.query(models.Users).all()
-    if not users:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
-    created_user=models.Users(
-                                    name=created_user.name,
-                                    email=created_user.email,
-                                    password=created_user.password,
-                                    is_active=True,
-                                    created_at=datetime.now()
-                            )
-    db.add(created_user)
+@router.put('/create_user',status_code=status.HTTP_201_CREATED)
+async def create_users(db:db_dependency,user_request:CreateUserRequest):
+    existing_user = db.query(models.Users).filter(models.Users.email == user_request.email).first()
+    if existing_user:       
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    new_user = models.Users(
+        name=user_request.name,
+        email=user_request.email,
+        password=user_request.password,  
+        created_at=datetime.now()
+    )
+
+    db.add(new_user)
     db.commit()
-    return "Done"
+    db.refresh(new_user)   # get the auto-generated id
+
+    return {
+        "message": "User created successfully",
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "email": new_user.email
+        }
+    }
 

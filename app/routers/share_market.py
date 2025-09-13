@@ -7,8 +7,8 @@ from Database import models
 
 
 router=APIRouter(
-    prefix='/admin'
-    ,tags=['admin']
+    prefix='/share market'
+    ,tags=['share market']
 )
 
 # Database dependency
@@ -21,9 +21,10 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-@router.get('/all_user',status_code=status.HTTP_200_OK)
+@router.get('/shares',status_code=status.HTTP_200_OK)
 async def create_users(db:db_dependency):
         if not db:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
-        return db.query(models.Users).all()
+        return db.query(models.StockPriceHistory).all()
+
 
