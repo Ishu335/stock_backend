@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import Field
 from sqlalchemy.orm import Session
 from typing import Annotated
 from Database.database import  SessionLocal
@@ -11,7 +10,6 @@ router=APIRouter(
     ,tags=['admin']
 )
 
-# Database dependency
 def get_db():
     db = SessionLocal()
     try:

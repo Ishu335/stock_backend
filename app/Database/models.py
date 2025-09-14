@@ -12,7 +12,6 @@ class Users(Base):
     password = Column(String, nullable=False)   
     created_at = Column(DateTime, default=date.today(), nullable=False)
 
-    # One-to-many relationship  
     rewards = relationship("Reward", back_populates="user")
 
 
@@ -22,13 +21,12 @@ class Reward(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     stock_symbol = Column(String, index=True, nullable=False)
-    shares = Column(Numeric(18, 6), nullable=False)   # FIXED
-    reward_ts = Column(DateTime, default=date.today(), nullable=False)  # FIXED
+    shares = Column(Numeric(18, 6), nullable=False)  
+    reward_ts = Column(DateTime, default=date.today(), nullable=False)  
     action_taken=Column(String,nullable=False)    
     share_price=Column(Integer,nullable=False)
     total_price=Column(Integer,nullable=False)
 
-    # Back reference to Users   
     user = relationship("Users", back_populates="rewards")
 
 
@@ -51,7 +49,7 @@ class Portfolio(Base):
     shares = Column(Numeric, nullable=False)
     average_price = Column(Numeric(18, 2))
     current_price = Column(Numeric(18, 2))
-    total_value = Column(Numeric(18, 2))  # Optional: can compute manually
+    total_value = Column(Numeric(18, 2))  
     last_updated = Column(DateTime, default=date.today())
 
 
@@ -69,13 +67,11 @@ class StockPriceHistory(Base):
 class LedgerTransaction(Base):
     __tablename__ = "ledger_transactions"
     id = Column(Integer, primary_key=True, index=True)
-    tx_type = Column(String, nullable=False)      # e.g., reward, fees, refund
-    reference_id = Column(Integer, nullable=True) # e.g., reward_id
+    tx_type = Column(String, nullable=False)      
+    reference_id = Column(Integer, nullable=True) 
     created_at = Column(DateTime, default=date.today())
 
-    # one-to-many relation
     entries = relationship("LedgerEntry", back_populates="transaction")
-
 
 class LedgerEntry(Base):
     __tablename__ = "ledger_entries"

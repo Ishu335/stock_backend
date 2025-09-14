@@ -28,9 +28,6 @@ class Request(BaseModel):
     incentives_for_actions: str
     shares: int
 
-<<<<<<< HEAD
-
-
 def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     inr_value = float(reward.shares) * float(stock_price)
 
@@ -87,7 +84,7 @@ def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     db.add_all([debit_entry, credit_entry, fees_debit, fees_credit])
     db.commit()
     db.refresh(ledger_tx)
-=======
+
 
 async def add_portfolio_entry(
     db: db_dependency, user_id: int, stock_symbol: str, shares: float,
@@ -121,10 +118,6 @@ async def add_portfolio_entry(
     db.add(portfolio_entry)
     db.commit()
     db.refresh(portfolio_entry)
-    return portfolio_entry
-
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
-
     return {
         "ledger_id": ledger_tx.id,
         "inr_value": inr_value,
@@ -139,23 +132,21 @@ async def add_portfolio_entry(
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def add_reward(user: Request, db: Session = Depends(get_db)):
+async def add_reward(user: Request, db: Session = Depends(get_db)):
 
     rewarded_user = db.query(models.Users).filter(models.Users.id == user.user_id).first()
     if not rewarded_user:
-<<<<<<< HEAD
+
         raise HTTPException(status_code=404, detail="No users found")
 
     stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
     if (not stock) or (stock.shares < user.shares):
         raise HTTPException(status_code=400, detail="Stock not available or insufficient shares")
-=======
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
 
     stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
     if (not stock) or (stock.shares < user.shares):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock not available or insufficient shares")
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
 
     reward = models.Reward(
         user_id=user.user_id,
@@ -163,18 +154,18 @@ def add_reward(user: Request, db: Session = Depends(get_db)):
         shares=user.shares,
         reward_ts=date.today(),
         action_taken=user.incentives_for_actions,
-<<<<<<< HEAD
+
         share_price=stock.price_in_inr,
         total_price=user.shares * stock.price_in_inr
     )
-=======
-        share_price=stock.share_price,
-        total_price=user.shares * stock.share_price
-    )
+
+    share_price=stock.share_price,
+    total_price=user.shares * stock.share_price
+    
 
     stock.shares -= user.shares
 
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
+
     db.add(reward)
     db.commit()
     db.refresh(reward)
@@ -201,19 +192,16 @@ def add_reward(user: Request, db: Session = Depends(get_db)):
             shares=user.shares,
             average_price=float(stock_history.average_price),
             current_price=float(stock_history.current_price)
-        )
+            )
 
     return {
         "message": "Reward added successfully with fees",
         "reward_id": reward.id,
-<<<<<<< HEAD
         "ledger_id": ledger_info["ledger_id"],
         "shares_rewarded": float(user.shares),
         "inr_value": ledger_info["inr_value"],
-        "fees": ledger_info["fees"]
-=======
+        "fees": ledger_info["fees"],
         "shares_rewarded": user.shares
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
     }
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -241,14 +229,10 @@ async def stock_user_today(userId: int, db: db_dependency):
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-<<<<<<< HEAD
-@router.get("/historical-inr/{userId}",status_code=status.HTTP_200_OK)
-async def return_all_stock_user_today(db: db_dependency, userId: int):
 
-=======
-@router.get("/historical-inr/{userId}")
+@router.get("/historical-inr/{userId}",status_code=status.HTTP_200_OK)
 async def past_record(db: db_dependency, userId: int):
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
+
     results = (
         db.query(models.Reward.stock_symbol, models.Reward.shares, models.Reward.total_price)
         .filter(models.Reward.user_id == userId)
@@ -263,22 +247,22 @@ async def past_record(db: db_dependency, userId: int):
     return {"Total Prices in INR": total_inr}
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-<<<<<<< HEAD
+
 @router.get("/portfolio/{userId}",status_code=status.HTTP_200_OK)
 async def return_status(userId:int,db:db_dependency):
     particular_id = db.query(models.Portfolio).filter(models.Portfolio.id == userId).first()
-=======
+
 @router.get("/portfolio/{userId}")
 async def user_portfolio(userId:int,db:db_dependency):
     particular_id = db.query(models.Portfolio).filter(models.Portfolio.user_id == userId).all()
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
+
     if not particular_id:   
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user found not have any Portfolio")
     return particular_id
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
+
 from sqlalchemy import func  
 
 @router.get("/stats/{userId}")
@@ -335,7 +319,7 @@ async def return_status(userId: int, db: Session = Depends(get_db)):
         "total_portfolio_value_in_inr": total_portfolio_value,
     }
 
-=======
+
 @router.get("/stats/{userId}")
 async def shares_reward_today(userId:int,db:db_dependency):
     particular_id = (
@@ -372,4 +356,4 @@ async def shares_reward_today(userId:int,db:db_dependency):
             f"Current INR Value of Portfolio: {totalValue}"
             }
 
->>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
+

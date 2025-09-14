@@ -26,8 +26,6 @@ class CreateUserRequest(BaseModel):
     email: str=Field(description="adc@gmail.com")
     password: str=Field(description="Pass@123")
     
-
-
 @router.put('/create_user',status_code=status.HTTP_201_CREATED)
 async def create_users(db:db_dependency,user_request:CreateUserRequest):
     existing_user = db.query(models.Users).filter(models.Users.email == user_request.email).first()
@@ -46,7 +44,7 @@ async def create_users(db:db_dependency,user_request:CreateUserRequest):
 
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)   # get the auto-generated id
+    db.refresh(new_user)   
 
     return {
         "message": "User created successfully",
