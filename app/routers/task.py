@@ -28,6 +28,7 @@ class Request(BaseModel):
     incentives_for_actions: str
     shares: int
 
+<<<<<<< HEAD
 
 
 def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
@@ -86,6 +87,43 @@ def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     db.add_all([debit_entry, credit_entry, fees_debit, fees_credit])
     db.commit()
     db.refresh(ledger_tx)
+=======
+
+async def add_portfolio_entry(
+    db: db_dependency, user_id: int, stock_symbol: str, shares: float,
+    average_price: float, current_price: float
+):
+    total_value = shares * current_price
+
+    portfolio_entry = (
+        db.query(models.Portfolio)
+        .filter(models.Portfolio.user_id == user_id)
+        .filter(models.Portfolio.stock_symbol == stock_symbol)
+        .first()
+    )
+
+    if portfolio_entry:
+        portfolio_entry.shares += shares
+        portfolio_entry.average_price = (
+            (portfolio_entry.average_price * portfolio_entry.shares) + (average_price * shares)
+        ) / (portfolio_entry.shares + shares)  
+        portfolio_entry.current_price = current_price
+        portfolio_entry.total_value = portfolio_entry.shares * current_price
+    else:
+            portfolio_entry = models.Portfolio(
+            user_id=user_id,
+            stock_symbol=stock_symbol,
+            shares=shares,
+            average_price=average_price,
+            current_price=current_price,
+            total_value=total_value
+        )
+    db.add(portfolio_entry)
+    db.commit()
+    db.refresh(portfolio_entry)
+    return portfolio_entry
+
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
 
     return {
         "ledger_id": ledger_tx.id,
@@ -105,11 +143,19 @@ def add_reward(user: Request, db: Session = Depends(get_db)):
 
     rewarded_user = db.query(models.Users).filter(models.Users.id == user.user_id).first()
     if not rewarded_user:
+<<<<<<< HEAD
         raise HTTPException(status_code=404, detail="No users found")
 
     stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
     if (not stock) or (stock.shares < user.shares):
         raise HTTPException(status_code=400, detail="Stock not available or insufficient shares")
+=======
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
+
+    stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
+    if (not stock) or (stock.shares < user.shares):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock not available or insufficient shares")
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
 
     reward = models.Reward(
         user_id=user.user_id,
@@ -117,9 +163,18 @@ def add_reward(user: Request, db: Session = Depends(get_db)):
         shares=user.shares,
         reward_ts=date.today(),
         action_taken=user.incentives_for_actions,
+<<<<<<< HEAD
         share_price=stock.price_in_inr,
         total_price=user.shares * stock.price_in_inr
     )
+=======
+        share_price=stock.share_price,
+        total_price=user.shares * stock.share_price
+    )
+
+    stock.shares -= user.shares
+
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
     db.add(reward)
     db.commit()
     db.refresh(reward)
@@ -131,19 +186,40 @@ def add_reward(user: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(stock)
 
+    stock_history = (
+        db.query(models.StockPriceHistory)
+        .filter(models.StockPriceHistory.stock_symbol == user.stock_symbol)
+        .order_by(models.StockPriceHistory.captured_at.desc())  
+        .first()
+    )
+
+    if stock_history:
+        await add_portfolio_entry(
+            db=db,
+            user_id=user.user_id,
+            stock_symbol=user.stock_symbol,
+            shares=user.shares,
+            average_price=float(stock_history.average_price),
+            current_price=float(stock_history.current_price)
+        )
+
     return {
         "message": "Reward added successfully with fees",
         "reward_id": reward.id,
+<<<<<<< HEAD
         "ledger_id": ledger_info["ledger_id"],
         "shares_rewarded": float(user.shares),
         "inr_value": ledger_info["inr_value"],
         "fees": ledger_info["fees"]
+=======
+        "shares_rewarded": user.shares
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
     }
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @router.get("/today-stocks/{userId}", status_code=status.HTTP_200_OK)
-async def return_all_stock_user_today(userId: int, db: db_dependency):
+async def stock_user_today(userId: int, db: db_dependency):
     particular_id = db.query(models.Users).filter(models.Users.id == userId).first()
     if not particular_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user found")
@@ -165,9 +241,14 @@ async def return_all_stock_user_today(userId: int, db: db_dependency):
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+<<<<<<< HEAD
 @router.get("/historical-inr/{userId}",status_code=status.HTTP_200_OK)
 async def return_all_stock_user_today(db: db_dependency, userId: int):
 
+=======
+@router.get("/historical-inr/{userId}")
+async def past_record(db: db_dependency, userId: int):
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
     results = (
         db.query(models.Reward.stock_symbol, models.Reward.shares, models.Reward.total_price)
         .filter(models.Reward.user_id == userId)
@@ -182,15 +263,22 @@ async def return_all_stock_user_today(db: db_dependency, userId: int):
     return {"Total Prices in INR": total_inr}
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+<<<<<<< HEAD
 @router.get("/portfolio/{userId}",status_code=status.HTTP_200_OK)
 async def return_status(userId:int,db:db_dependency):
     particular_id = db.query(models.Portfolio).filter(models.Portfolio.id == userId).first()
+=======
+@router.get("/portfolio/{userId}")
+async def user_portfolio(userId:int,db:db_dependency):
+    particular_id = db.query(models.Portfolio).filter(models.Portfolio.user_id == userId).all()
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
     if not particular_id:   
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user found not have any Portfolio")
     return particular_id
 
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
 from sqlalchemy import func  
 
 @router.get("/stats/{userId}")
@@ -247,3 +335,41 @@ async def return_status(userId: int, db: Session = Depends(get_db)):
         "total_portfolio_value_in_inr": total_portfolio_value,
     }
 
+=======
+@router.get("/stats/{userId}")
+async def shares_reward_today(userId:int,db:db_dependency):
+    particular_id = (
+        db.query(models.Reward.total_price,models.Reward.stock_symbol,models.Reward.shares)
+        .filter(models.Reward.user_id == userId)
+        .filter(models.Reward.stock_symbol !=None)
+        .filter(models.Reward.shares>0)
+        .filter(models.Reward.reward_ts==date.today())
+        .all()
+        )
+    if not particular_id:   
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The user not have Rewared")
+    
+    total={}
+    todayProfit=0
+    for i in particular_id:
+
+        todayProfit+=i.total_price
+        
+        if i.stock_symbol in total:
+            total[i.stock_symbol] += float(i.total_price)
+        else:
+            total[i.stock_symbol] = float(i.total_price)
+
+    valueCurrentPrice = db.query(models.Portfolio.current_price).filter(models.Portfolio.user_id == userId).all()
+    totalValue=0
+    for i in valueCurrentPrice:
+        totalValue+=i.current_price
+
+    dateToday=date.today()
+    return {
+            f"Total Reward Shares on Today {dateToday}{total}",
+            f"Total Profit : {todayProfit}",
+            f"Current INR Value of Portfolio: {totalValue}"
+            }
+
+>>>>>>> f73921be4b1a91f0aa2fd5402693bf8e2acd7b97
