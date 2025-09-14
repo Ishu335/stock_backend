@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import Field
 from sqlalchemy.orm import Session
 from typing import Annotated
 from Database.database import  SessionLocal
@@ -21,10 +20,18 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
+
+@router.get('/shares/current share',status_code=status.HTTP_200_OK)
+async def current_share(db:db_dependency):
+        if not db:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
+        return db.query(models.StockPrice).all()
+
 @router.get('/shares',status_code=status.HTTP_200_OK)
-async def create_users(db:db_dependency):
+async def all_share(db:db_dependency):
         if not db:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
         return db.query(models.StockPriceHistory).all()
+
 
 

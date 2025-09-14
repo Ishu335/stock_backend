@@ -66,3 +66,26 @@ class StockPriceHistory(Base):
     total_price = Column(Numeric(18,4), nullable=False)
     captured_at = Column(DateTime, default=date.today(), nullable=False)
 
+class LedgerTransaction(Base):
+    __tablename__ = "ledger_transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    tx_type = Column(String, nullable=False)      # e.g., reward, fees, refund
+    reference_id = Column(Integer, nullable=True) # e.g., reward_id
+    created_at = Column(DateTime, default=date.today())
+
+    # one-to-many relation
+    entries = relationship("LedgerEntry", back_populates="transaction")
+
+
+class LedgerEntry(Base):
+    __tablename__ = "ledger_entries"
+    id = Column(Integer, primary_key=True, index=True)
+    tx_id = Column(Integer, ForeignKey("ledger_transactions.id"), nullable=False)
+    account = Column(String, nullable=False)         # e.g. EXPENSE:REWARDS
+    direction = Column(String, nullable=False)       # debit or credit
+    amount_in_inr = Column(Numeric(18, 4), nullable=False)
+    shares = Column(Numeric(18, 6), nullable=True)   # optional
+    stock_symbol = Column(String, nullable=True)
+    created_at = Column(DateTime, default=date.today())
+
+    transaction = relationship("LedgerTransaction", back_populates="entries")
