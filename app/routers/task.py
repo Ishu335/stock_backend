@@ -28,16 +28,15 @@ class Request(BaseModel):
     incentives_for_actions: str
     shares: int
 
+
 def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     inr_value = float(reward.shares) * float(stock_price)
 
-    
     brokerage = inr_value * 0.01     # 1% brokerage
     stt = inr_value * 0.001          # 0.1% STT
     gst = brokerage * 0.18           # 18% GST on brokerage
     total_fees = brokerage + stt + gst
 
-    
     ledger_tx = models.LedgerTransaction(
         tx_type="reward",
         reference_id=reward.id,
@@ -46,10 +45,9 @@ def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     db.add(ledger_tx)
     db.flush()  
 
-    
     debit_entry = models.LedgerEntry(
         tx_id=ledger_tx.id,
-        account="EXPENSE:REWARDS(1% br0+0.1% STT,18% GST)",
+        account="EXPENSE:REWARDS(1% brokerage + 0.1% STT, 18% GST)",
         direction="debit",
         amount_in_inr=inr_value,
         shares=reward.shares,
@@ -65,15 +63,13 @@ def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
         stock_symbol=reward.stock_symbol
     )
 
-    
     fees_debit = models.LedgerEntry(
         tx_id=ledger_tx.id,
-        account="EXPENSE:FEES(GTS)",
+        account="EXPENSE:FEES(GST)",
         direction="debit",
         amount_in_inr=total_fees
     )
 
-    
     fees_credit = models.LedgerEntry(
         tx_id=ledger_tx.id,
         account="CASH:BANK",
@@ -85,39 +81,6 @@ def addLedger_with_fees(db: Session, reward: models.Reward, stock_price: float):
     db.commit()
     db.refresh(ledger_tx)
 
-
-async def add_portfolio_entry(
-    db: db_dependency, user_id: int, stock_symbol: str, shares: float,
-    average_price: float, current_price: float
-):
-    total_value = shares * current_price
-
-    portfolio_entry = (
-        db.query(models.Portfolio)
-        .filter(models.Portfolio.user_id == user_id)
-        .filter(models.Portfolio.stock_symbol == stock_symbol)
-        .first()
-    )
-
-    if portfolio_entry:
-        portfolio_entry.shares += shares
-        portfolio_entry.average_price = (
-            (portfolio_entry.average_price * portfolio_entry.shares) + (average_price * shares)
-        ) / (portfolio_entry.shares + shares)  
-        portfolio_entry.current_price = current_price
-        portfolio_entry.total_value = portfolio_entry.shares * current_price
-    else:
-            portfolio_entry = models.Portfolio(
-            user_id=user_id,
-            stock_symbol=stock_symbol,
-            shares=shares,
-            average_price=average_price,
-            current_price=current_price,
-            total_value=total_value
-        )
-    db.add(portfolio_entry)
-    db.commit()
-    db.refresh(portfolio_entry)
     return {
         "ledger_id": ledger_tx.id,
         "inr_value": inr_value,
@@ -130,23 +93,59 @@ async def add_portfolio_entry(
     }
 
 
+def add_portfolio_entry(
+    db: Session, user_id: int, stock_symbol: str, shares: float,
+    average_price: float, current_price: float
+):
+    total_value = shares * current_price
+
+    portfolio_entry = (
+        db.query(models.Portfolio)
+        .filter(models.Portfolio.user_id == user_id)
+        .filter(models.Portfolio.stock_symbol == stock_symbol)
+        .first()
+    )
+
+    if portfolio_entry:
+        # keep old shares
+        old_shares = float(portfolio_entry.shares)
+        new_shares = old_shares + float(shares)
+
+        # Weighted average price
+        portfolio_entry.average_price = (
+            (float(portfolio_entry.average_price) * old_shares) + (average_price * shares)
+        ) / new_shares
+
+        portfolio_entry.shares = new_shares
+        portfolio_entry.current_price = current_price
+        portfolio_entry.total_value = new_shares * current_price
+    else:
+        # New portfolio entry
+        portfolio_entry = models.Portfolio(
+            user_id=user_id,
+            stock_symbol=stock_symbol,
+            shares=shares,
+            average_price=average_price,
+            current_price=current_price,
+            total_value=total_value
+        )
+
+    db.add(portfolio_entry)
+    db.commit()
+    db.refresh(portfolio_entry)
+
+    return portfolio_entry
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def add_reward(user: Request, db: Session = Depends(get_db)):
 
     rewarded_user = db.query(models.Users).filter(models.Users.id == user.user_id).first()
     if not rewarded_user:
-
         raise HTTPException(status_code=404, detail="No users found")
 
     stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
     if (not stock) or (stock.shares < user.shares):
         raise HTTPException(status_code=400, detail="Stock not available or insufficient shares")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
-
-    stock = db.query(models.StockPrice).filter(models.StockPrice.stock_symbol == user.stock_symbol).first()
-    if (not stock) or (stock.shares < user.shares):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock not available or insufficient shares")
 
     reward = models.Reward(
         user_id=user.user_id,
@@ -154,17 +153,11 @@ async def add_reward(user: Request, db: Session = Depends(get_db)):
         shares=user.shares,
         reward_ts=date.today(),
         action_taken=user.incentives_for_actions,
-
         share_price=stock.price_in_inr,
         total_price=user.shares * stock.price_in_inr
     )
 
-    share_price=stock.share_price,
-    total_price=user.shares * stock.share_price
-    
-
-    stock.shares -= user.shares
-
+    stock.shares -= user.shares 
 
     db.add(reward)
     db.commit()
@@ -172,7 +165,6 @@ async def add_reward(user: Request, db: Session = Depends(get_db)):
 
     ledger_info = addLedger_with_fees(db, reward, stock.price_in_inr)
 
-    stock.shares -= user.shares
     db.add(stock)
     db.commit()
     db.refresh(stock)
@@ -184,15 +176,15 @@ async def add_reward(user: Request, db: Session = Depends(get_db)):
         .first()
     )
 
-    if stock_history:
-        await add_portfolio_entry(
-            db=db,
-            user_id=user.user_id,
-            stock_symbol=user.stock_symbol,
-            shares=user.shares,
-            average_price=float(stock_history.average_price),
-            current_price=float(stock_history.current_price)
-            )
+    add_portfolio_entry(
+        db=db,
+        user_id=user.user_id,
+        stock_symbol=user.stock_symbol,
+        shares=float(user.shares),
+        average_price=float(stock_history.average_price),
+        current_price=float(stock_history.current_price)
+    )
+
 
     return {
         "message": "Reward added successfully with fees",
@@ -200,8 +192,7 @@ async def add_reward(user: Request, db: Session = Depends(get_db)):
         "ledger_id": ledger_info["ledger_id"],
         "shares_rewarded": float(user.shares),
         "inr_value": ledger_info["inr_value"],
-        "fees": ledger_info["fees"],
-        "shares_rewarded": user.shares
+        "fees": ledger_info["fees"]
     }
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -249,10 +240,6 @@ async def past_record(db: db_dependency, userId: int):
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @router.get("/portfolio/{userId}",status_code=status.HTTP_200_OK)
-async def return_status(userId:int,db:db_dependency):
-    particular_id = db.query(models.Portfolio).filter(models.Portfolio.id == userId).first()
-
-@router.get("/portfolio/{userId}")
 async def user_portfolio(userId:int,db:db_dependency):
     particular_id = db.query(models.Portfolio).filter(models.Portfolio.user_id == userId).all()
 
