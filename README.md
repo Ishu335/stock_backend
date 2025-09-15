@@ -34,7 +34,7 @@ Built with **FastAPI** and **SQLAlchemy**.
 
 ## Getting Started
 
-```bash
+```
 # Clone the repository
 git clone https://github.com/Ishu335/stock_backend.git
 cd stock_backend
@@ -49,3 +49,6 @@ pip install -r requirements.txt
 
 # Run the server
 uvicorn app.main:app --reload
+```
+
+![Alt text](https://github.com/Ishu335/stock_backend/blob/753f62d63e5ffdd791b7ab1e634e23a8de406690/app/images/image.png)
